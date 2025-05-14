@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Google Trends Analysis</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        input[type=text], button { padding: 10px; font-size: 16px; }
+        .chart { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Google Trends Analysis</h1>
+    <form method="POST">
+        <label for="keyword">Enter Keyword:</label>
+        <input type="text" id="keyword" name="keyword" required>
+        <button type="submit">Analyze</button>
+    </form>
+
+    {% if keyword %}
+        <h2>Results for "{{ keyword }}"</h2>
+        <div class="chart">
+            <h3>Interest Over Time</h3>
+            <img src="{{ time_chart }}" alt="Interest Over Time Chart" width="80%">
+        </div>
+        <div class="chart">
+            <h3>Top 10 Countries</h3>
+            <img src="static/top_countries.png" alt="Top Countries Chart" width="60%">
+        </div>
+        <div class="chart">
+            <a href="{{ url_for('download', filename=keyword + '_data.csv') }}">
+                <button>Download CSV Data</button>
+            </a>
+        </div>
+    {% endif %}
+</body>
+</html>
