@@ -33,9 +33,21 @@ if keyword:
 
         # Related Topics (Safe Fetch)
         related = pytrends.related_topics()
-        keyword_related = related.get(keyword, {})
-        top_related = keyword_related.get('top')
-        rising_related = keyword_related.get('rising')
+        top_related = None
+        rising_related = None
+
+        if keyword in related:
+            if 'top' in related[keyword]:
+                top_related = related[keyword]['top']
+            else:
+                st.warning(f"No 'top' related topics found for '{keyword}'.")
+
+            if 'rising' in related[keyword]:
+                rising_related = related[keyword]['rising']
+            else:
+                st.warning(f"No 'rising' related topics found for '{keyword}'.")
+        else:
+            st.warning(f"No related topics found for '{keyword}'.")
 
         # --- Displaying the Data ---
 
