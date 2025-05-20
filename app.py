@@ -3,66 +3,85 @@ from pytrends.request import TrendReq
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import os
+import warnings
+from io import BytesIO
 
-# Setup
+# Suppress known warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="pytrends.request")
+
+# Streamlit configuration
 st.set_page_config(page_title="Google Trends Analyzer", layout="wide")
-st.title("📈 Google Trends Insights - Malaysia")
-st.markdown("Enter a keyword to explore interest over time and regional popularity.")
+st.title("📊 Google Trends Analyzer (Malaysia)")
 
-# Form input
-with st.form(key="trend_form"):
-    keyword = st.text_input("🔍 Enter a keyword", "")
-    submit = st.form_submit_button("Analyze")
+# Input
+keyword = st.text_input("Enter a search keyword:", placeholder="e.g. AI, Olympics, Tesla")
 
-if submit and keyword.strip():
-    try:
-        kw_list = [keyword.strip()]
-        pytrends = TrendReq(hl='en-US', tz=360)
-        pytrends.build_payload(kw_list, cat=13, timeframe='today 5-y', geo='MY', gprop='')
+if keyword:
+    kw_list = [keyword]
+    pytrends = TrendReq(hl='en-US', tz=360)
+    pytrends.build_payload(kw_list, cat=13, timeframe='today 5-y', geo='MY', gprop='')
 
-        # Interest over time
-        interest_over_time = pytrends.interest_over_time()
-        if 'isPartial' in interest_over_time.columns:
-            interest_over_time = interest_over_time.drop(columns=['isPartial'])
+    # Interest Over Time
+    interest_over_time = pytrends.interest_over_time()
+    if 'isPartial' in interest_over_time.columns:
+        interest_over_time = interest_over_time.drop(columns=['isPartial'])
 
-        st.subheader("📊 Interest Over Time")
-        fig, ax = plt.subplots(figsize=(10, 4))
-        sns.lineplot(data=interest_over_time, x=interest_over_time.index, y=keyword, ax=ax)
-        ax.set_title(f"Search Interest Over Time: '{keyword}'")
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Interest Level")
-        st.pyplot(fig)
+    # Interest by Region
+    interest_by_region = pytrends.interest_by_region(resolution='COUNTRY', inc_low_vol=True)
+    top_regions = interest_by_region.sort_values(by=keyword, ascending=False).head(10)
 
-        # Interest by region
-        st.subheader("🌍 Top Countries")
-        interest_by_region = pytrends.interest_by_region(resolution='COUNTRY', inc_low_vol=True)
-        top_regions = interest_by_region.sort_values(by=keyword, ascending=False).head(10)
+    # Related Topics
+    related = pytrends.related_topics()
+    top_related = related[keyword]['top']
+    rising_related = related[keyword]['rising']
 
-        st.dataframe(top_regions)
+    # Plot: Interest Over Time
+    st.subheader(f"📈 Interest Over Time: `{keyword}`")
+    fig1, ax1 = plt.subplots(figsize=(10, 4))
+    sns.lineplot(data=interest_over_time, x=interest_over_time.index, y=keyword, ax=ax1, color='blue')
+    ax1.set_xlabel("Date")
+    ax1.set_ylabel("Interest Level")
+    ax1.set_title("Search Interest Over Time in Malaysia")
+    st.pyplot(fig1)
 
-        fig2, ax2 = plt.subplots(figsize=(8, 4))
-        sns.barplot(x=top_regions[keyword], y=top_regions.index, palette="viridis", ax=ax2)
-        ax2.set_title(f"Top 10 Countries for '{keyword}'")
-        ax2.set_xlabel("Interest")
-        ax2.set_ylabel("Country")
-        st.pyplot(fig2)
+    # Plot: Top Countries
+    st.subheader(f"🌍 Top 10 Countries Searching `{keyword}`")
+    fig2, ax2 = plt.subplots(figsize=(8, 4))
+    sns.barplot(x=top_regions[keyword], y=top_regions.index, ax=ax2, color='skyblue')
+    ax2.set_xlabel("Interest Level")
+    ax2.set_ylabel("Country")
+    st.pyplot(fig2)
 
-        # Save CSV for download
-        csv_data = pd.concat([
-            interest_over_time.reset_index().rename(columns={'date': 'Date'}),
-            top_regions.reset_index().rename(columns={'geoName': 'Country'})
-        ], axis=1)
+    # Table: Country Data
+    st.subheader("📋 Interest by Country")
+    st.dataframe(top_regions.reset_index())
 
-        csv_file = f"{keyword}_trends.csv"
-        csv_data.to_csv(csv_file, index=False)
+    # Related Topics
+    st.subheader("🧠 Related Topics")
 
-        st.download_button(
-            label="📥 Download Data as CSV",
-            data=open(csv_file, "rb"),
-            file_name=csv_file,
-            mime="text/csv"
-        )
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### 🔝 Top Related Topics")
+        if isinstance(top_related, pd.DataFrame) and not top_related.empty:
+            st.dataframe(top_related[['topic_title', 'value']].rename(columns={'topic_title': 'Topic', 'value': 'Interest'}))
+        else:
+            st.write("No data available.")
+    with col2:
+        st.markdown("#### 📈 Rising Related Topics")
+        if isinstance(rising_related, pd.DataFrame) and not rising_related.empty:
+            st.dataframe(rising_related[['topic_title', 'value']].rename(columns={'topic_title': 'Topic', 'value': 'Growth'}))
+        else:
+            st.write("No data available.")
 
-    except Exception as e:
-        st.error(f"❌ Error: {e}")
+    # CSV Download
+    st.subheader("📥 Download Time Series Data")
+    csv_buffer = BytesIO()
+    interest_over_time.to_csv(csv_buffer)
+    st.download_button(
+        label="Download CSV",
+        data=csv_buffer.getvalue(),
+        file_name=f"{keyword}_trend_timeseries.csv",
+        mime="text/csv"
+    )
+else:
+    st.info("👆 Please enter a keyword to analyze Google Trends data.")
