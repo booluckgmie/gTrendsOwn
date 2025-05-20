@@ -70,8 +70,5 @@ def download(filename):
     return send_file(f"static/{filename}", as_attachment=True)
 
 if __name__ == "__main__":
-    # Disable debug mode (and the reloader) if running in a specific environment
-    if 'STREAMLIT_IS_RUNNING' in os.environ:
-        app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
-    else:
-        app.run(debug=True)
+    # Forcefully disable debug mode
+    app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
