@@ -19,7 +19,7 @@ def index():
         kw_list = [keyword]
 
         pytrends = TrendReq(hl='en-US', tz=360)
-        pytrends.build_payload(kw_list, cat=0, timeframe='today 5-y', geo='', gprop='')
+        pytrends.build_payload(kw_list, cat=13, timeframe='today 5-y', geo='MY', gprop='')
 
         # Interest over time
         interest_over_time = pytrends.interest_over_time()
