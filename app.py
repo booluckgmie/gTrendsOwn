@@ -1,23 +1,23 @@
-from flask import Flask, render_template, request, send_file
+import streamlit as st
 from pytrends.request import TrendReq
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-app = Flask(__name__)
+# Setup
+st.set_page_config(page_title="Google Trends Analyzer", layout="wide")
+st.title("📈 Google Trends Insights - Malaysia")
+st.markdown("Enter a keyword to explore interest over time and regional popularity.")
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    keyword = None
-    time_chart_path = None
-    top_countries = None
-    csv_path = None
+# Form input
+with st.form(key="trend_form"):
+    keyword = st.text_input("🔍 Enter a keyword", "")
+    submit = st.form_submit_button("Analyze")
 
-    if request.method == "POST":
-        keyword = request.form["keyword"]
-        kw_list = [keyword]
-
+if submit and keyword.strip():
+    try:
+        kw_list = [keyword.strip()]
         pytrends = TrendReq(hl='en-US', tz=360)
         pytrends.build_payload(kw_list, cat=13, timeframe='today 5-y', geo='MY', gprop='')
 
@@ -26,49 +26,43 @@ def index():
         if 'isPartial' in interest_over_time.columns:
             interest_over_time = interest_over_time.drop(columns=['isPartial'])
 
+        st.subheader("📊 Interest Over Time")
+        fig, ax = plt.subplots(figsize=(10, 4))
+        sns.lineplot(data=interest_over_time, x=interest_over_time.index, y=keyword, ax=ax)
+        ax.set_title(f"Search Interest Over Time: '{keyword}'")
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Interest Level")
+        st.pyplot(fig)
+
         # Interest by region
+        st.subheader("🌍 Top Countries")
         interest_by_region = pytrends.interest_by_region(resolution='COUNTRY', inc_low_vol=True)
         top_regions = interest_by_region.sort_values(by=keyword, ascending=False).head(10)
 
-        # Save CSV
-        csv_path = f"static/{keyword}_data.csv"
-        combined_data = pd.concat([interest_over_time, top_regions], axis=1)
-        combined_data.to_csv(csv_path)
+        st.dataframe(top_regions)
 
-        # Plotting
-        sns.set(style="whitegrid")
-        plt.figure(figsize=(12, 6))
-        plt.plot(interest_over_time.index, interest_over_time[keyword], color='blue')
-        plt.title(f"Google Search Interest Over Time: '{keyword}'", fontsize=16)
-        plt.xlabel("Year")
-        plt.ylabel("Interest Level")
-        plt.tight_layout()
-        time_chart_path = "static/trends.png"
-        plt.savefig(time_chart_path)
-        plt.close()
+        fig2, ax2 = plt.subplots(figsize=(8, 4))
+        sns.barplot(x=top_regions[keyword], y=top_regions.index, palette="viridis", ax=ax2)
+        ax2.set_title(f"Top 10 Countries for '{keyword}'")
+        ax2.set_xlabel("Interest")
+        ax2.set_ylabel("Country")
+        st.pyplot(fig2)
 
-        # Save bar plot for top countries (optional)
-        plt.figure(figsize=(12, 6))
-        sns.barplot(x=top_regions[keyword], y=top_regions.index, palette="viridis")
-        plt.title(f"Top 10 Countries Searching for '{keyword}'", fontsize=16)
-        plt.xlabel("Interest Level")
-        plt.ylabel("Country")
-        plt.tight_layout()
-        plt.savefig("static/top_countries.png")
-        plt.close()
+        # Save CSV for download
+        csv_data = pd.concat([
+            interest_over_time.reset_index().rename(columns={'date': 'Date'}),
+            top_regions.reset_index().rename(columns={'geoName': 'Country'})
+        ], axis=1)
 
-        top_countries = top_regions
+        csv_file = f"{keyword}_trends.csv"
+        csv_data.to_csv(csv_file, index=False)
 
-    return render_template("index.html", keyword=keyword,
-                           time_chart=time_chart_path,
-                           csv_path=csv_path,
-                           top_countries=top_countries)
+        st.download_button(
+            label="📥 Download Data as CSV",
+            data=open(csv_file, "rb"),
+            file_name=csv_file,
+            mime="text/csv"
+        )
 
-
-@app.route("/download/<filename>")
-def download(filename):
-    return send_file(f"static/{filename}", as_attachment=True)
-
-if __name__ == "__main__":
-    # Forcefully disable debug mode
-    app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    except Exception as e:
+        st.error(f"❌ Error: {e}")
